@@ -16,19 +16,22 @@ export class PrismaReviewRepository implements ReviewRepository {
     const cached = await this.cache.get<Review[]>(key);
     if (cached) return cached;
 
-    try {
-      const rows = await getPrisma().review.findMany({
-        where: { listingId },
-        orderBy: { position: 'asc' },
-      });
+    const db = getPrisma();
+    if (db) {
+      try {
+        const rows = await db.review.findMany({
+          where: { listingId },
+          orderBy: { position: 'asc' },
+        });
 
-      if (rows.length > 0) {
-        const reviews = rows.map(toReview);
-        await this.cache.set(key, reviews, CacheTtl.reviews);
-        return reviews;
+        if (rows.length > 0) {
+          const reviews = rows.map(toReview);
+          await this.cache.set(key, reviews, CacheTtl.reviews);
+          return reviews;
+        }
+      } catch {
+        // Fall through to fixture
       }
-    } catch {
-      // Fall through to fixture
     }
 
     if (listingId === LISTING_FIXTURE.id) {

@@ -19,18 +19,21 @@ export class PrismaListingRepository implements ListingRepository {
     const cached = await this.cache.get<Listing>(CacheKeys.listing(id));
     if (cached) return cached;
 
-    try {
-      const row = await getPrisma().listing.findUnique({
-        where: { id },
-        include: listingInclude,
-      });
-      if (row) {
-        const listing = toListing(row);
-        await this.cache.set(CacheKeys.listing(id), listing, CacheTtl.listing);
-        return listing;
+    const db = getPrisma();
+    if (db) {
+      try {
+        const row = await db.listing.findUnique({
+          where: { id },
+          include: listingInclude,
+        });
+        if (row) {
+          const listing = toListing(row);
+          await this.cache.set(CacheKeys.listing(id), listing, CacheTtl.listing);
+          return listing;
+        }
+      } catch {
+        // Database not reachable or unpopulated — fall through to fixture
       }
-    } catch {
-      // Database not reachable or unpopulated — fall through to fixture
     }
 
     if (id === LISTING_FIXTURE.id) {
@@ -46,17 +49,20 @@ export class PrismaListingRepository implements ListingRepository {
    * a partial read if two saves land at once.
    */
   async setSaved(id: ListingId, saved: boolean): Promise<Listing> {
-    const exists = await getPrisma().listing.findUnique({
-      where: { id },
-      select: { id: true },
-    });
-    if (!exists) throw new Error(`Listing ${id} does not exist`);
-
-    await getPrisma().wishlist.upsert({
-      where: { listingId: id },
-      create: { listingId: id, saved },
-      update: { saved },
-    });
+    const db = getPrisma();
+    if (db) {
+      const exists = await db.listing.findUnique({
+        where: { id },
+        select: { id: true },
+      });
+      if (exists) {
+        await db.wishlist.upsert({
+          where: { listingId: id },
+          create: { listingId: id, saved },
+          update: { saved },
+        });
+      }
+    }
 
     await this.cache.del(CacheKeys.listing(id));
 

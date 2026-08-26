@@ -63,10 +63,13 @@ export class PrismaBookingRepository implements BookingRepository {
     if (cached) return cached;
 
     let unavailable: string[] = [];
-    try {
-      unavailable = await this.readUnavailable(getPrisma(), listingId, from, to);
-    } catch {
-      // DB unreachable
+    const db = getPrisma();
+    if (db) {
+      try {
+        unavailable = await this.readUnavailable(db, listingId, from, to);
+      } catch {
+        // DB unreachable
+      }
     }
 
     const availability: Availability = {
@@ -125,6 +128,7 @@ export class PrismaBookingRepository implements BookingRepository {
   async create(input: CreateBookingInput): Promise<Booking> {
     const nights = nightsBetween(input.checkIn, input.checkOut);
     const prisma = getPrisma();
+    if (!prisma) throw new Error('Database not configured');
 
     const row = await this.withSerializationRetry(() =>
       prisma.$transaction(
@@ -200,12 +204,16 @@ export class PrismaBookingRepository implements BookingRepository {
   }
 
   async findById(id: string): Promise<Booking | null> {
-    const row = await getPrisma().booking.findUnique({ where: { id } });
+    const db = getPrisma();
+    if (!db) return null;
+    const row = await db.booking.findUnique({ where: { id } });
     return row ? toBooking(row) : null;
   }
 
   async findByListingId(listingId: ListingId): Promise<readonly Booking[]> {
-    const rows = await getPrisma().booking.findMany({
+    const db = getPrisma();
+    if (!db) return [];
+    const rows = await db.booking.findMany({
       where: { listingId },
       orderBy: { checkIn: 'asc' },
     });

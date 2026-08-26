@@ -12,11 +12,19 @@ import { PrismaClient } from '@prisma/client';
 
 const globals = globalThis as typeof globalThis & { __airPrisma?: PrismaClient };
 
-export function getPrisma(): PrismaClient {
-  if (!globals.__airPrisma) {
-    globals.__airPrisma = new PrismaClient({
-      log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
-    });
+export function getPrisma(): PrismaClient | null {
+  if (!process.env.DATABASE_URL && !process.env.DIRECT_DATABASE_URL) {
+    return null;
   }
-  return globals.__airPrisma;
+  try {
+    if (!globals.__airPrisma) {
+      globals.__airPrisma = new PrismaClient({
+        log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+      });
+    }
+    return globals.__airPrisma;
+  } catch (error) {
+    console.warn('[prisma] Failed to initialize PrismaClient:', error);
+    return null;
+  }
 }
