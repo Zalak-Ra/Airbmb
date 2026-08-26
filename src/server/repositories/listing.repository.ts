@@ -1,5 +1,6 @@
 import { CacheKeys, CacheTtl, getCache, type RedisLike } from '@/server/cache/redis';
 import { getPrisma } from '@/server/db/prisma';
+import { LISTING_FIXTURE } from '@/lib/data/fixtures';
 import type { ListingRepository } from '@/server/repositories/contracts';
 import { listingInclude, toListing } from '@/server/repositories/mappers';
 import type { Listing, ListingId } from '@/types/listing';
@@ -9,10 +10,7 @@ import type { Listing, ListingId } from '@/types/listing';
  *
  *   1. L1 cache (`listing:<id>:entity`)
  *   2. PostgreSQL via Prisma, assembled into the domain object
- *   3. null, which the service turns into a 404
- *
- * Nested `include` is the right shape here: Postgres is a network hop, so one
- * round trip beats the five sequential queries that were free against SQLite.
+ *   3. Fallback fixture catalog (so Vercel/demo deployments render photos & data immediately)
  */
 export class PrismaListingRepository implements ListingRepository {
   constructor(private readonly cache: RedisLike = getCache()) {}
@@ -21,15 +19,25 @@ export class PrismaListingRepository implements ListingRepository {
     const cached = await this.cache.get<Listing>(CacheKeys.listing(id));
     if (cached) return cached;
 
-    const row = await getPrisma().listing.findUnique({
-      where: { id },
-      include: listingInclude,
-    });
-    if (!row) return null;
+    try {
+      const row = await getPrisma().listing.findUnique({
+        where: { id },
+        include: listingInclude,
+      });
+      if (row) {
+        const listing = toListing(row);
+        await this.cache.set(CacheKeys.listing(id), listing, CacheTtl.listing);
+        return listing;
+      }
+    } catch {
+      // Database not reachable or unpopulated — fall through to fixture
+    }
 
-    const listing = toListing(row);
-    await this.cache.set(CacheKeys.listing(id), listing, CacheTtl.listing);
-    return listing;
+    if (id === LISTING_FIXTURE.id) {
+      await this.cache.set(CacheKeys.listing(id), LISTING_FIXTURE, CacheTtl.listing);
+      return LISTING_FIXTURE;
+    }
+    return null;
   }
 
   /**

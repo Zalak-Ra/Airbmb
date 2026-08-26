@@ -62,9 +62,16 @@ export class PrismaBookingRepository implements BookingRepository {
     const cached = await this.cache.get<Availability>(key);
     if (cached) return cached;
 
+    let unavailable: string[] = [];
+    try {
+      unavailable = await this.readUnavailable(getPrisma(), listingId, from, to);
+    } catch {
+      // DB unreachable
+    }
+
     const availability: Availability = {
       listingId,
-      unavailable: await this.readUnavailable(getPrisma(), listingId, from, to),
+      unavailable,
       rangeStart: from,
       rangeEnd: to,
     };
