@@ -1,0 +1,258 @@
+// Normalized PostgreSQL schema for the listing bounded context.
+//
+// Why Prisma here and not hand-written SQL: Postgres is a separate process,
+// so the workshop no longer needs to see every bind parameter to believe the
+// query ran. The Repository Pattern still owns *which* queries fire and how
+// rows become domain objects — Prisma is the driver, not the architecture.
+//
+// `directUrl` is the Neon lesson: migrations cannot run through PgBouncer
+// (prepared statements + pooling do not mix). Locally both URLs point at the
+// same Compose Postgres. In production DATABASE_URL is the pooler and
+// DIRECT_DATABASE_URL is the writer.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+enum PhotoCategory {
+  living
+  bedroom
+  kitchen
+  dining
+  pool
+  exterior
+  bathroom
+  workspace
+  outdoor
+}
+
+enum HighlightIcon {
+  checkin
+  superhost
+  location
+  cancellation
+}
+
+enum BookingStatus {
+  confirmed
+  cancelled
+}
+
+enum BlockReason {
+  host_block
+}
+
+model Host {
+  id           String         @id
+  name         String
+  avatarSrc    String         @map("avatar_src")
+  isSuperhost  Boolean        @map("is_superhost")
+  hostingYears Int            @map("hosting_years")
+  reviewCount  Int            @map("review_count")
+  rating       Float
+  livesIn      String         @map("lives_in")
+  responseRate Int            @map("response_rate")
+  responseTime String         @map("response_time")
+  bio          String
+  languages    HostLanguage[]
+  listings     Listing[]
+
+  @@map("hosts")
+}
+
+model HostLanguage {
+  hostId   String @map("host_id")
+  language String
+  host     Host   @relation(fields: [hostId], references: [id], onDelete: Cascade)
+
+  @@id([hostId, language])
+  @@map("host_languages")
+}
+
+model Listing {
+  id                 String              @id
+  hostId             String              @map("host_id")
+  host               Host                @relation(fields: [hostId], references: [id])
+  title              String
+  subtitle           String
+  locationLabel      String              @map("location_label")
+  neighborhood       String
+  city               String
+  country            String
+  lat                Float
+  lng                Float
+  locationBlurb      String              @map("location_blurb")
+  propertyType       String              @map("property_type")
+  guests             Int
+  bedrooms           Int
+  beds               Int
+  baths              Float
+  nightPrice         Int                 @map("night_price")
+  cleaningFee        Int                 @map("cleaning_fee")
+  airbnbFee          Int                 @default(0) @map("airbnb_fee")
+  rating             Float
+  reviewCount        Int                 @map("review_count")
+  isSuperhost        Boolean             @map("is_superhost")
+  isGuestFavorite    Boolean             @map("is_guest_favorite")
+  description        String
+  descriptionExtra   String              @map("description_extra")
+  cancellation       String
+  checkInWindow      String              @map("check_in_window")
+  checkOutTime       String              @map("check_out_time")
+  scoreCleanliness   Float               @map("score_cleanliness")
+  scoreAccuracy      Float               @map("score_accuracy")
+  scoreCheckIn       Float               @map("score_check_in")
+  scoreCommunication Float               @map("score_communication")
+  scoreLocation      Float               @map("score_location")
+  scoreValue         Float               @map("score_value")
+  photos             Photo[]
+  amenities          ListingAmenity[]
+  highlights         Highlight[]
+  houseRules         ListingHouseRule[]
+  safetyItems        ListingSafetyItem[]
+  reviews            Review[]
+  wishlist           Wishlist?
+  blockedNights      BlockedNight[]
+  bookings           Booking[]
+
+  @@map("listings")
+}
+
+model Photo {
+  id        String        @id
+  listingId String        @map("listing_id")
+  listing   Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  src       String
+  alt       String
+  width     Int
+  height    Int
+  category  PhotoCategory
+  caption   String
+  position  Int
+
+  @@index([listingId, position])
+  @@map("photos")
+}
+
+/// Catalog of amenity kinds. A listing does not own "Wifi" — it *offers* it.
+model Amenity {
+  id       String           @id
+  label    String
+  icon     String
+  listings ListingAmenity[]
+
+  @@map("amenities")
+}
+
+model ListingAmenity {
+  listingId String  @map("listing_id")
+  amenityId String  @map("amenity_id")
+  featured  Boolean
+  position  Int
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  amenity   Amenity @relation(fields: [amenityId], references: [id], onDelete: Cascade)
+
+  @@id([listingId, amenityId])
+  @@index([listingId, position])
+  @@map("listing_amenities")
+}
+
+model Highlight {
+  id        String        @id
+  listingId String        @map("listing_id")
+  listing   Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  icon      HighlightIcon
+  position  Int
+
+  @@index([listingId, position])
+  @@map("highlights")
+}
+
+model ListingHouseRule {
+  listingId String  @map("listing_id")
+  position  Int
+  body      String
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@id([listingId, position])
+  @@map("listing_house_rules")
+}
+
+model ListingSafetyItem {
+  listingId String  @map("listing_id")
+  position  Int
+  body      String
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@id([listingId, position])
+  @@map("listing_safety_items")
+}
+
+model Review {
+  id            String  @id
+  listingId     String  @map("listing_id")
+  listing       Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  author        String
+  avatarSrc     String  @map("avatar_src")
+  dateLabel     String  @map("date_label")
+  yearsOnAirbnb Int     @map("years_on_airbnb")
+  rating        Int
+  stayLabel     String  @map("stay_label")
+  body          String
+  position      Int
+
+  @@index([listingId, position])
+  @@map("reviews")
+}
+
+/// Anonymous wishlist heart. Becomes a (user_id, listing_id) pair the moment
+/// auth exists; until then the UI has exactly one saved-flag per listing.
+model Wishlist {
+  listingId String   @id @map("listing_id")
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  saved     Boolean  @default(false)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("wishlist")
+}
+
+model BlockedNight {
+  listingId String      @map("listing_id")
+  listing   Listing     @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  night     DateTime    @db.Date
+  reason    BlockReason @default(host_block)
+
+  @@id([listingId, night])
+  @@map("blocked_nights")
+}
+
+model Booking {
+  id            String        @id
+  listingId     String        @map("listing_id")
+  listing       Listing       @relation(fields: [listingId], references: [id])
+  checkIn       DateTime      @map("check_in") @db.Date
+  checkOut      DateTime      @map("check_out") @db.Date
+  adults        Int
+  children      Int
+  infants       Int
+  pets          Int
+  nights        Int
+  nightSubtotal Int           @map("night_subtotal")
+  cleaningFee   Int           @map("cleaning_fee")
+  serviceFee    Int           @map("service_fee")
+  taxes         Int
+  total         Int
+  status        BookingStatus @default(confirmed)
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  @@index([listingId, status, checkIn, checkOut])
+  @@map("bookings")
+}

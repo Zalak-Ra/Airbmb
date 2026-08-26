@@ -1,0 +1,57 @@
+# Local infrastructure only. The Next.js app still runs on the host via
+# `npm run dev` so hot reload stays native. Start the production image with
+# `docker compose --profile app up --build` when you want container parity.
+#
+#   docker compose up -d          # Postgres + Redis
+#   docker compose --profile app up --build
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: air
+      POSTGRES_PASSWORD: air
+      POSTGRES_DB: air
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U air -d air"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://air:air@postgres:5432/air
+      DIRECT_DATABASE_URL: postgresql://air:air@postgres:5432/air
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:

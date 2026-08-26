@@ -1,0 +1,23 @@
+---
+description: Teaching-quality JSDoc — explain why, not what
+alwaysApply: true
+---
+
+# Documentation
+
+- Public modules, hooks, and repository methods get JSDoc that states the design reason (read-through cache, code-splitting, focus restoration).
+- Do not comment a line that restates the identifier (`// get listing`).
+- File-level banners belong on data-layer and a11y primitives; presentational components stay lean.
+
+```ts
+// ❌ BAD
+/** Get listing. */
+export function getListing() {}
+
+// ✅ GOOD
+/**
+ * Read-through lookup: L1 Redis mock, then IndexedDB.
+ * Why: listing revisits should not pay seed-decode + IDB latency twice.
+ */
+export function getListingById() {}
+```

@@ -1,0 +1,23 @@
+---
+description: Strict TypeScript for the listing clone — no implicit any, typed repositories
+globs: **/*.{ts,tsx}
+alwaysApply: false
+---
+
+# TypeScript
+
+- Do not use `any`. Narrow `unknown` at the boundary (JSON.parse, Redis payloads).
+- Domain types live in `src/types`. UI props are dedicated interfaces.
+- Repositories return domain objects, never cache envelope types.
+- Exhaustive unions: `const _exhaustive: never = value` in the default branch.
+
+```ts
+// ❌ BAD
+function save(listing: any) { localStorage.setItem('l', listing) }
+
+// ✅ GOOD
+function toListing(value: unknown): Listing {
+  if (!isListing(value)) throw new TypeError('Invalid listing record');
+  return value;
+}
+```

@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.gitignore
+data
+*.md
+!README.md
+.env
+.env.*
+!.env.example
+Dockerfile*
+docker-compose*.yml
+agent-transcripts
+.cursor
+.cursorrules
+*.log

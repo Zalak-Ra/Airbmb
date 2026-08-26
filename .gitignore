@@ -1,0 +1,12 @@
+node_modules
+.next
+out
+.DS_Store
+*.log
+.env
+.env*.local
+!.env.example
+next-env.d.ts
+
+# Legacy SQLite file from the pre-Postgres era.
+data/

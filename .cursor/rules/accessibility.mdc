@@ -1,0 +1,20 @@
+---
+description: ARIA, focus trapping, and keyboard parity for dialogs and galleries
+globs: **/*.tsx
+alwaysApply: false
+---
+
+# Accessibility
+
+- Icon-only buttons require `aria-label`. Decorative SVGs get `aria-hidden`.
+- Modals: `role="dialog"`, `aria-modal="true"`, focus trap, restore on close.
+- Lightbox supports Escape, ←, →. Tab cycles inside the dialog only.
+- Never remove outlines without `focus-visible:outline` replacement (2px #222).
+
+```tsx
+// ❌ BAD
+<div onClick={open} className="outline-none">📷</div>
+
+// ✅ GOOD
+<button type="button" aria-label="Show all photos" onClick={open} className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hof">
+```

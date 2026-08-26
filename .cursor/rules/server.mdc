@@ -1,0 +1,21 @@
+---
+description: Route handlers, repositories, and SQL conventions for the API
+globs: src/server/**/*.ts,src/app/api/**/*.ts,prisma/**/*.ts
+alwaysApply: false
+---
+
+# Server
+
+- Every route: `runtime = 'nodejs'`, `dynamic = 'force-dynamic'`, body wrapped in `handle()`.
+- Validate with zod at the route. Repositories receive valid domain input only.
+- Prisma is the driver. Domain mapping happens in `mappers.ts`. React never imports `@prisma/client`.
+- Reads go through `RedisLike`; writes invalidate before returning.
+- Anything that checks-then-writes belongs in `prisma.$transaction` with `Serializable`.
+
+```ts
+// ❌ BAD — interpolated SQL, unvalidated body, raw 500 on failure
+const rows = await prisma.$queryRawUnsafe(`SELECT * FROM bookings WHERE listing_id = '${id}'`);
+
+// ✅ GOOD
+const rows = await prisma.booking.findMany({ where: { listingId: id } });
+```

@@ -1,0 +1,117 @@
+# AIR — Airbnb Listing Clone (Teaching Codebase)
+
+This repository is a workshop-grade, production-shaped clone of a vacation-rental
+listing page. Every change must read as if a staff engineer is teaching the
+"why", not only the "what".
+
+## Non-negotiables
+
+1. Build from scratch. Never scrape, copy, or vendor the reference site's
+   JavaScript, CSS, SVG path dumps, or component trees.
+2. Visual parity is required (desktop): spacing, type scale, color, hover,
+   focus, and motion must match the Airbnb listing language.
+3. Strict TypeScript. `any`, leftover `unknown` without narrowing, and
+   implicit `any` are defects.
+4. Accessibility is a feature, not a polish pass. Modals trap focus. Galleries
+   are keyboard-complete. Interactive elements have names.
+
+## TypeScript
+
+- Prefer `interface` for object shapes that may be extended; `type` for unions,
+  mapped types, and function signatures.
+- Model domain data in `src/types`. Repositories return those types — never
+  leak IndexedDB or cache DTOs into React.
+- Exhaustive `switch` on discriminated unions (`satisfies never` in default).
+- Public functions, hooks, and modules get JSDoc that explains the design
+  choice (caching, code-splitting, focus restoration), not a paraphrase of the
+  name.
+
+```ts
+// ❌ BAD
+async function get(id: any) { return fetch('/x/' + id) }
+
+// ✅ GOOD
+/** Read-through: Redis mock first so listing navigations do not re-hit IndexedDB. */
+async function getListingById(id: ListingId): Promise<Listing> { /* ... */ }
+```
+
+## React & Next.js App Router
+
+- Server Components by default. Add `"use client"` only for state, effects,
+  browser storage, Framer Motion, or React Query.
+- Heavy below-fold UI (reviews, map, photo tour, lightbox) must be loaded with
+  `next/dynamic` so the listing hero stays in the critical path.
+- Images go through `next/image` (`sizes`, `priority` on LCP, lazy elsewhere).
+- Lightbox navigation prefetches adjacent bitmaps before the user presses ←/→.
+
+## Data layer (Repository Pattern)
+
+```
+browser                          │ server (src/server, never imported by a client component)
+UI → React Query → listing.service → Route Handler → repository → Redis (L1)
+                   (typed fetch)     (zod + errors)               → PostgreSQL via Prisma
+```
+
+- `src/server/**` is server-only. A client component importing it is a defect;
+  `server-only` makes it a build error.
+- Repositories return domain types. Prisma models stop at `mappers.ts` and
+  never reach React.
+- PrismaClient hangs off `globalThis`. Next bundles each route separately,
+  so a module-level `let` would open a pool per route.
+- Redis is a separate process (Compose, Upstash, or ioredis). The in-memory
+  adapter is only the fallback when no URL is configured.
+- React Query owns stale-while-revalidate and the optimistic wishlist update.
+- Availability is never served stale (`staleTime: 0`, `Cache-Control: no-store`).
+  Every other read may be.
+
+## Money and writes
+
+- Never trust a price from the client. `src/lib/pricing.ts` is shared so the
+  booking card can preview a total, but the server recomputes it from the
+  stored nightly rate before writing.
+- Availability check and booking insert share one Serializable transaction.
+  A GiST exclusion constraint is the database's copy of the same rule.
+  Checking outside the transaction is a double-sell bug.
+- Idempotent writes use PUT (the wishlist sends desired state, not a toggle).
+- Validate at the route with zod; repositories take already-valid domain input.
+- Error codes are a closed union (`not_found`, `invalid_request`,
+  `dates_unavailable`, `internal_error`) so the client can branch type-safely.
+  A conflict is 409, a bad body is 422.
+
+## Tailwind
+
+- Use design tokens from `tailwind.config.ts` (`airbnb-rausch`, `airbnb-hof`).
+- No magic hex in JSX except as a last resort; prefer tokens.
+- Prefer spacing scale that maps to Airbnb's 8px grid (and 4px photo gaps).
+- No `@apply` of large visual blocks — keep utilities in the markup so the
+  workshop can see the layout without hunting CSS files.
+- Desktop-only: do not add a mobile breakpoint redesign. `min-w` the shell.
+
+## Accessibility
+
+- Icon-only controls need `aria-label`.
+- Dialogs: `role="dialog"`, `aria-modal="true"`, labelled by title id.
+- Focus trap + restore on close. Escape closes. Lightbox: ←/→.
+- Visible `focus-visible` rings (`2px #222`, offset 2px). Never `outline-none`
+  without a replacement.
+- Prefer semantic HTML (`button`, `nav`, `main`, headings in order).
+
+## Motion
+
+- Framer Motion for overlay enter/exit, lightbox crossfade, and scroll-linked
+  header elevation. Match Airbnb easing: cubic-bezier(0.2, 0, 0, 1).
+- Honor `prefers-reduced-motion`: skip non-essential transforms.
+
+## Comments & structure
+
+- File-level JSDoc describes the architectural role of the module.
+- Colocate component-specific hooks next to the component when they are not
+  reused. Shared hooks live in `src/hooks`.
+- One component, one job. Photo grid does not own lightbox state machines
+  beyond callbacks.
+
+## What not to do
+
+- Do not call `document.querySelector` to fake React state.
+- Do not put secrets in the client bundle (this mock has none; keep it that way).
+- Do not add libraries when the platform (Next, RQ, Prisma, Redis, Framer) already covers it.

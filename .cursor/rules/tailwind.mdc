@@ -1,0 +1,20 @@
+---
+description: Tailwind token usage and Airbnb spacing grid
+globs: **/*.{tsx,css}
+alwaysApply: false
+---
+
+# Tailwind
+
+- Use theme tokens (`text-hof`, `bg-rausch`, `gap-photo`) instead of raw hex.
+- Photo mosaic gap is 8px (`gap-2`) with 12px outer radius — do not invent a third scale.
+- Keep layout utilities in JSX so the workshop can read spacing in place.
+- Desktop-only shell: `min-w-[1280px]`. Do not introduce a mobile redesign.
+
+```tsx
+// ❌ BAD
+<div className="text-[#222] p-[13px] bg-[#FF385C]">
+
+// ✅ GOOD
+<div className="text-hof p-3 bg-rausch">
+```
